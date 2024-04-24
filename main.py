@@ -1,28 +1,72 @@
-
-
-
+import sys
 import json
 import requests
-import tkinter as tk
-from tkinter import filedialog
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog
+from PyQt5.QtCore import Qt, QMimeData
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 
-########################################################################
-# The UI
-########################################################################
 
-# Open the file and retrieve the values
-def open_file():
-    file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-    if file_path:
-        with open("./data/my_data.json", "r") as file:
-            # Retrieve data from the file
+
+# TODO 1. Add some reponse to the window so that the user knows if it was successful
+# TODO 2.
+
+
+class DragDropWidget(QWidget):
+
+    # Creates the window
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Oura JSON to Runalyze")
+        self.setGeometry(300, 300, 600, 400)  # Increased window size to accommodate response labels
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self.label = QLabel("Drag and drop your JSON file here", self)
+        self.label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.label)
+
+        self.btn_select_file = QPushButton("Select File")
+        self.btn_select_file.clicked.connect(self.select_file)
+        layout.addWidget(self.btn_select_file)
+
+        # Labels to display response codes and bodies
+        self.sleep_response_label = QLabel("Sleep Response: ", self)
+        layout.addWidget(self.sleep_response_label)
+
+        self.hrv_response_label = QLabel("HRV Response: ", self)
+        layout.addWidget(self.hrv_response_label)
+
+        self.setAcceptDrops(True)
+
+    # Adds functionality to allow for dropping of the file onto the window
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        for url in event.mimeData().urls():
+            file_path = url.toLocalFile()
+            if file_path.lower().endswith('.json'):
+                self.open_file(file_path)
+
+    # Alternatively the file can be selected from a dropdown menu
+    def select_file(self):
+        file_dialog = QFileDialog(self)
+        file_dialog.setNameFilter("JSON files (*.json)")
+        if file_dialog.exec_():
+            file_paths = file_dialog.selectedFiles()
+            if file_paths:
+                self.open_file(file_paths[0])
+
+
+    def open_file(self, file_path):
+        with open(file_path, "r") as file:
             contents = json.load(file)
-
-            #Access the 'Sleep' key and get the most recent entry
             sleep_data = contents['sleep']
             most_recent_entry = sleep_data[-1]
 
-            # Define the values that we want to extract and create a dictionary for the SLEEP data
             data_sleep = {
                 "start_time": most_recent_entry["bedtime_start"],
                 "duration": round(most_recent_entry["time_in_bed"] / 60),
@@ -34,90 +78,46 @@ def open_file():
                 "hr_lowest": round(most_recent_entry["lowest_heart_rate"]),
                 "quality": round(most_recent_entry["score"] / 10),
             }
-            # Define the values that we want to extract and create a dictionary for the HRV data
-            # Here the HRV data uses the bedtime_end as its time, however it's a nightly average
+
             data_hrv = {
                 "date_time": most_recent_entry["bedtime_end"],
                 "measurement_type": "asleep",
                 "hrv": round(most_recent_entry["average_hrv"]),
             }
 
-            # Print the JSON data for debugging
             print("JSON Data HRV:", data_hrv)
             print("JSON Data sleep:", data_sleep)
 
             BASE_URL = "https://runalyze.com"
-
-            # URL for the PUT request
             sleep_url = BASE_URL + "/api/v1/metrics/sleep"
             hrv_url = BASE_URL + "/api/v1/metrics/hrv"
 
-            # Token for authentication
-            # Here you'll need to create a config.json file with your private token
-            # Load token from config file
-            token = get_token()
+            token = self.get_token()
 
-
-            # Headers containing the token
             headers = {
                 "token": token,
                 "Content-Type": "application/json",
             }
 
-            # Make the POST request for sleep
             response_sleep = requests.post(sleep_url, json=data_sleep, headers=headers)
-            # Check if the request was successful
-            print("Sleep Response Status Code:", response_sleep.status_code)
-            print("Sleep Response Body:", response_sleep.text)
+            self.sleep_response_label.setText(f"Sleep Response: {response_sleep.status_code} - {response_sleep.text}")
 
-            # Make the POST request for HRV
+
             response_hrv = requests.post(hrv_url, json=data_hrv, headers=headers)
-            # Check if the request was successful
-            print("HRV Response Status Code:", response_hrv.status_code)
-            print("HRV Response Body:", response_hrv.text)
+            self.hrv_response_label.setText(f"HRV Response: {response_hrv.status_code} - {response_hrv.text}")
 
 
-def get_token():
-    try:
+    def get_token(self):
         with open("config.json", "r") as config_file:
-            config_data = json.load(config_file)
-            return config_data["token"]
-    except FileNotFoundError:
-        token_window = tk.Toplevel(root)
-        token_window.title("Enter Token")
-
-        token_label = tk.Label(token_window, text="Enter your private token:")
-        token_label.pack()
-
-        token_entry = tk.Entry(token_window)
-        token_entry.pack()
-
-        def save_token():
-            token = token_entry.get()
-            with open("config.json", "w") as config_file:
-                json.dump({"token": token}, config_file)
-            token_window.destroy()
-
-        submit_button = tk.Button(token_window, text="Submit", command=save_token)
-        submit_button.pack()
-
-        token_window.wait_window(token_window)
-
-        with open("config.json", "r") as config_file:
-            config_data = json.load(config_file)
-            return config_data["token"]
+                config_data = json.load(config_file)
+                return config_data["token"]
 
 
-root = tk.Tk()
-root.title("JSON File Reader")
-
-
-label = tk.Label(root, text="Click here to select your JSON file")
-label.pack()
-
-root.bind("<Button-1>", lambda e: open_file())  # Bind left-click to open file dialog
-
-root.mainloop()
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    widget = DragDropWidget()
+    widget.show()
+    sys.exit(app.exec_())
 
 
 
