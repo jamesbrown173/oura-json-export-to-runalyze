@@ -64,6 +64,7 @@ class DragDropWidget(QWidget):
     def open_file(self, file_path):
         with open(file_path, "r") as file:
             contents = json.load(file)
+
             sleep_data = contents['sleep']
             most_recent_entry = sleep_data[-1]
 
