@@ -7,10 +7,6 @@ from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 
 
 
-# TODO 1. Add some reponse to the window so that the user knows if it was successful
-# TODO 2.
-
-
 class DragDropWidget(QWidget):
 
     # Creates the window
@@ -86,8 +82,9 @@ class DragDropWidget(QWidget):
                 "hrv": round(most_recent_entry["average_hrv"]),
             }
 
-            print("JSON Data HRV:", data_hrv)
-            print("JSON Data sleep:", data_sleep)
+            # Print the request body here for debugging
+            # print("JSON Data HRV:", data_hrv)
+            # print("JSON Data sleep:", data_sleep)
 
             BASE_URL = "https://runalyze.com"
             sleep_url = BASE_URL + "/api/v1/metrics/sleep"
